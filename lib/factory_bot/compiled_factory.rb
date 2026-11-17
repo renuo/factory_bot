@@ -19,8 +19,8 @@ module FactoryBot
       strategy = Strategy.lookup_strategy(build_strategy).new
 
       evaluator = Evaluator.new(self, strategy, overrides.symbolize_keys)
-      attribute_assigner = AttributeAssigner.new(evaluator, attributes, &constructor)
-      evaluation = Evaluation.new(evaluator, attribute_assigner, to_create, callbacks)
+      attribute_assigner = AttributeAssigner.new(evaluator, self, &constructor)
+      evaluation = Evaluation.new(evaluator, attribute_assigner, to_create, self)
 
       evaluation.notify(:before_all, nil)
       instance = strategy.result(evaluation).tap(&block)
@@ -30,7 +30,32 @@ module FactoryBot
     end
 
     def associations
-      attributes.values.select(&:association?)
+      @associations ||= attributes.values.select(&:association?)
+    end
+
+    def attribute_names
+      @attribute_names ||= attributes.keys
+    end
+
+    def non_transient_attributes
+      @non_transient_attributes ||= attributes.values.reject(&:transient)
+    end
+
+    def non_transient_attribute_names
+      @non_transient_attribute_names ||= non_transient_attributes.map(&:name)
+    end
+
+    def transient_attribute_names
+      @transient_attribute_names ||= attributes.values.select(&:transient).map(&:name)
+    end
+
+    def association_names
+      @association_names ||= associations.map(&:name)
+    end
+
+    def callbacks_for(name)
+      @callbacks_by_name ||= callbacks.group_by(&:name)
+      @callbacks_by_name.fetch(name, [])
     end
   end
 end

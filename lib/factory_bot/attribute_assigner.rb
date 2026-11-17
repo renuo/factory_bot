@@ -1,10 +1,12 @@
 module FactoryBot
   # @api private
   class AttributeAssigner
-    def initialize(evaluator, attributes, &instance_builder)
+    SETTERS = Hash.new { |setters, attribute| setters[attribute] = :"#{attribute}=" }
+
+    def initialize(evaluator, compiled, &instance_builder)
       @instance_builder = instance_builder
       @evaluator = evaluator
-      @attributes = attributes
+      @compiled = compiled
       @attribute_names_assigned = []
     end
 
@@ -13,7 +15,7 @@ module FactoryBot
       @evaluator.instance = build_class_instance
       build_class_instance.tap do |instance|
         attributes_to_set_on_instance.each do |attribute|
-          instance.public_send(:"#{attribute}=", get(attribute))
+          instance.public_send(SETTERS[attribute], get(attribute))
           @attribute_names_assigned << attribute
         end
       end
@@ -58,32 +60,17 @@ module FactoryBot
       end
     end
 
-    def non_transient_attribute_names
-      non_transient_attributes.map(&:name)
-    end
-
-    def transient_attribute_names
-      @attributes.values.select(&:transient).map(&:name)
-    end
-
-    def association_names
-      @attributes.values.select(&:association?).map(&:name)
-    end
-
-    def non_transient_attributes
-      @attributes.values.reject(&:transient)
-    end
+    delegate :non_transient_attribute_names, :transient_attribute_names, :association_names,
+      :non_transient_attributes, :attribute_names, to: :@compiled
 
     def override_names
-      @evaluator.__override_names__
-    end
-
-    def attribute_names
-      @attributes.keys
+      @override_names ||= @evaluator.__override_names__
     end
 
     # Builds a list of attribute names which are slated to be interrupted by an override.
     def attribute_names_overriden_by_alias
+      return [] if override_names.empty?
+
       non_transient_attributes
         .flat_map { |attribute|
           override_names.map do |override|
@@ -91,6 +78,11 @@ module FactoryBot
           end
         }
         .compact
+    end
+
+    def aliases_for(override)
+      @aliases_for ||= {}
+      @aliases_for[override] ||= FactoryBot.aliases_for(override)
     end
 
     # Is the attribute an ignorable alias of the override?
@@ -101,7 +93,7 @@ module FactoryBot
     #   (1) attributes which are aliases and reference the same value
     #   (2) a logical grouping of a foreign key and an associated object
     def ignorable_alias?(attribute, override)
-      return false unless attribute.alias_for?(override)
+      return false unless aliases_for(override).include?(attribute.name)
 
       # The attribute alias should be ignored when the override interrupts an association
       return true if override_interrupts_association?(attribute, override)
