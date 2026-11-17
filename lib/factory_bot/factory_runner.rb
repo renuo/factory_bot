@@ -10,7 +10,7 @@ module FactoryBot
 
     def run(runner_strategy = @strategy, &block)
       factory = FactoryBot::Internal.factory_by_name(@name)
-      compiled = factory.compiled(@traits)
+      compiled = @traits.any? ? factory.compiled(@traits) : factory.compiled
 
       instrumentation_payload = {
         name: @name,

@@ -1180,3 +1180,18 @@ describe "when a self-referential trait is defined" do
     )
   end
 end
+
+describe "building with a single nil trait" do
+  it "builds the factory as if no traits were given" do
+    define_model("User", name: :string)
+
+    FactoryBot.define do
+      factory :user do
+        name { "John" }
+      end
+    end
+
+    expect(FactoryBot.build(:user, nil).name).to eq "John"
+    expect(FactoryBot.build_list(:user, 1, nil, name: "Jane").map(&:name)).to eq ["Jane"]
+  end
+end
